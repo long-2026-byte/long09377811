@@ -367,6 +367,48 @@
     .tag.risk { background: #ffeded; color: var(--risk); }
     .suggestions, .projects { margin: 0; padding-left: 20px; color: #334a63; }
     .projects li { margin-bottom: 6px; font-weight: 700; color: var(--blue-800); }
+    .report-narrative {
+      margin-top: 22px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, #ffffff, var(--blue-050));
+      padding: 22px;
+    }
+    .report-narrative h3 {
+      color: var(--blue-900);
+      margin: 0 0 12px;
+      font-size: 22px;
+    }
+    .report-narrative p {
+      color: #2d435c;
+      margin: 0 0 12px;
+      text-align: justify;
+    }
+    .report-narrative p:last-child { margin-bottom: 0; }
+    .report-columns {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .report-block {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .report-block h4 {
+      margin: 0 0 10px;
+      color: var(--blue-900);
+      font-size: 18px;
+    }
+    .report-block ul { margin: 0; padding-left: 20px; color: #334a63; }
+    .hint-text {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: right;
+    }
 
     footer {
       padding: 34px 0 44px;
@@ -390,7 +432,7 @@
       .link-btn { flex: 1; text-align: center; }
       .hero { padding-top: 42px; }
       .hero-visual { min-height: 300px; padding: 22px; }
-      .model-grid, .metric-grid, .insight-grid { grid-template-columns: 1fr; }
+      .model-grid, .metric-grid, .insight-grid, .report-columns { grid-template-columns: 1fr; }
       .question, .group-title { padding-left: 14px; padding-right: 14px; }
       #totalScore { font-size: 58px; }
     }
@@ -498,6 +540,8 @@
           </div>
           <div class="actions no-print">
             <button class="secondary-btn" type="button" id="printBtn">打印 / 保存为PDF</button>
+            <button class="secondary-btn" type="button" id="downloadReportBtn">下载报告文本</button>
+            <button class="secondary-btn" type="button" id="copyReportBtn">复制报告</button>
           </div>
         </div>
 
@@ -512,6 +556,21 @@
           </div>
 
           <div class="metric-grid" id="metricGrid"></div>
+
+          <div class="report-narrative" id="expertReport">
+            <h3>专家诊断综述</h3>
+            <div id="expertSummary"></div>
+            <div class="report-columns">
+              <div class="report-block">
+                <h4>优势说明</h4>
+                <div id="strengthAnalysis"></div>
+              </div>
+              <div class="report-block">
+                <h4>短板与风险</h4>
+                <div id="riskAnalysis"></div>
+              </div>
+            </div>
+          </div>
 
           <div class="insight-grid">
             <div class="insight">
@@ -531,6 +590,12 @@
               <ul class="projects" id="projectList"></ul>
             </div>
           </div>
+
+          <div class="report-narrative">
+            <h3>院长可读咨询建议</h3>
+            <div id="consultingAdvice"></div>
+          </div>
+          <div class="hint-text no-print" id="saveHint">手机浏览器如无法直接保存PDF，可先使用“下载报告文本”或“复制报告”。</div>
         </div>
       </div>
     </section>
@@ -669,6 +734,7 @@
     const progressBar = document.getElementById("progressBar");
     const alertBox = document.getElementById("alertBox");
     const resultSection = document.getElementById("result");
+    let latestReportText = "";
 
     function renderModel() {
       modelGrid.innerHTML = dimensions.map((dim) => `
@@ -745,6 +811,91 @@
       if (total >= 75) return "稳健发展型医院";
       if (total >= 60) return "成长瓶颈型医院";
       return "组织重建型医院";
+    }
+
+    function getLevelExplanation(total) {
+      if (total >= 90) {
+        return "组织成长型医院通常说明医院已经形成较成熟的管理基础，干部队伍、团队协同、执行闭环和人才发展之间能够相互支撑。这个阶段的重点不是从零补课，而是把已有经验标准化、复制化，并进一步沉淀为医院长期发展的组织资产。";
+      }
+      if (total >= 75) {
+        return "稳健发展型医院通常说明医院整体管理基础较好，多数维度已经具备稳定运行能力，但部分关键环节仍可能依赖个人经验或临时协调。这个阶段的重点，是把相对成熟的管理做法固化下来，同时补齐影响效率和成长速度的短板。";
+      }
+      if (total >= 60) {
+        return "成长瓶颈型医院通常说明医院已经具备一定管理基础，也有推动改善的意愿，但组织能力的发展速度尚未完全跟上业务规模、学科建设和管理复杂度的提升。这个阶段常见特点是：工作推进不缺努力，但协同成本偏高；管理动作不少，但闭环沉淀不足；关键岗位很忙，但系统支撑不够。";
+      }
+      return "组织重建型医院通常说明医院在多个组织能力维度上存在较明显短板，很多管理问题可能仍依赖少数关键人员推动。这个阶段不宜只做零散整改，而应先建立基本的干部责任、协同机制、执行闭环和人才培养体系，让医院管理从被动救火逐步回到有序运行。";
+    }
+
+    function getDimensionAnalysis(dimName, score) {
+      const map = {
+        "干部成长能力": `干部成长能力反映医院是否具备清晰的中层干部标准、培养路径和管理能力评估机制。得分为${score}分，说明该维度${score >= 80 ? "已具备较好基础，可继续推动干部经验沉淀和后备干部梯队建设" : score >= 70 ? "已有一定基础，但还需要进一步明确科主任、护士长等关键岗位的管理职责与成长路径" : "存在较明显提升空间，建议优先关注中层干部角色转型、上岗训练、后备干部培养和管理能力评估"}。`,
+        "团队协同能力": `团队协同能力反映临床、护理、职能部门之间能否围绕患者和重点工作形成高效配合。得分为${score}分，说明该维度${score >= 80 ? "运行相对顺畅，是医院推动跨部门项目的重要基础" : score >= 70 ? "具备基本协同基础，但复杂问题和跨部门事项仍需更清晰的机制支撑" : "可能是当前组织运行的重要瓶颈，需关注部门衔接、责任边界、推诿扯皮和跨部门问题闭环"}。`,
+        "执行落地能力": `执行落地能力反映医院战略、会议决策和重点任务能否真正传递到科室并形成闭环。得分为${score}分，说明该维度${score >= 80 ? "具备较强推进能力，可进一步沉淀项目管理和复盘机制" : score >= 70 ? "基本能够推动工作落地，但在责任分解、过程反馈和结果复盘方面仍可加强" : "需要重点改善，常见表现是会议不少、任务很多，但责任人、时间表、反馈机制和闭环复盘不够稳定"}。`,
+        "人才发展能力": `人才发展能力反映医院是否拥有系统的人才培养、青年骨干发展、带教和核心人才保留机制。得分为${score}分，说明该维度${score >= 80 ? "已具备较好人才发展意识，可进一步打造人才梯队和成长项目品牌" : score >= 70 ? "有一定人才培养基础，但年轻医生、年轻护士和青年骨干的成长路径还可更加清晰" : "存在较大提升空间，需要把人才培养从自然成长转向体系化发展"}。`,
+        "组织文化能力": `组织文化能力反映员工对医院方向的认同、信任关系、积极氛围和责任意识。得分为${score}分，说明该维度${score >= 80 ? "是医院组织成长的重要优势，说明团队具备一定信任基础和发展共识" : score >= 70 ? "总体氛围具备基础，但仍需让文化进一步落实到日常行为和管理机制中" : "需要引起重视，文化问题往往会影响执行、协同和人才留存，建议从信任沟通、责任意识和共同目标入手"}。`,
+        "持续成长能力": `持续成长能力反映医院是否能够复盘问题、沉淀标准、鼓励创新并形成长期成长机制。得分为${score}分，说明该维度${score >= 80 ? "具备较强学习与改进基础，可进一步把项目经验转化为组织资产" : score >= 70 ? "已有持续改进意识，但标准化、复盘和经验复制还可进一步加强" : "需要系统建设，避免优秀经验停留在个人或单个项目中，难以复制和沉淀"}。`
+      };
+      return map[dimName] || "";
+    }
+
+    function buildReport(scores, total, strengths, risks, lowDimensions) {
+      const level = getLevel(total);
+      const scoreLines = dimensions.map((dim, index) => `${dim.name}：${scores[index]}分`).join("；");
+      const strengthNames = strengths.map(dim => dim.name).join("、") || "暂无明显优势维度";
+      const riskNames = risks.map(dim => dim.name).join("、") || "暂无明显风险维度";
+      const lowNames = lowDimensions.map(dim => dim.name).join("、");
+      const sorted = dimensions.map((dim, index) => ({ dim, score: scores[index] })).sort((a, b) => a.score - b.score);
+      const topSorted = [...sorted].reverse();
+
+      const summary = [
+        `根据本次48题组织能力诊断结果，贵院组织能力总分为${total}分，当前评定为“${level}”。${getLevelExplanation(total)}`,
+        `从六维得分结构看，${scoreLines}。这组数据说明，医院组织能力不是单一问题，而是干部、团队、执行、人才、文化和持续成长之间共同作用的结果。对院长和医院管理层而言，分数本身不是终点，更重要的是看见哪些能力正在支撑医院发展，哪些能力正在制约管理效率和组织成长速度。`
+      ];
+
+      const strengthAnalysis = [
+        `本次诊断中，表现相对较好的维度是：${strengthNames}。这些维度说明医院已经具备一定管理基础，也说明组织内部并非缺少成长意愿，而是需要把已有优势进一步转化为可复制的机制。`,
+        ...topSorted.slice(0, 2).map(item => getDimensionAnalysis(item.dim.name, item.score))
+      ];
+
+      const riskAnalysis = [
+        `需要重点关注的维度是：${riskNames}。这些维度不应简单理解为某个部门或某类人员“不努力”，更应理解为组织系统对一线管理和跨部门协同的支撑还不够充分。`,
+        ...sorted.slice(0, 2).map(item => getDimensionAnalysis(item.dim.name, item.score))
+      ];
+
+      const advice = [
+        `建议贵院下一阶段采取“先诊断、再聚焦、后推进”的方式，不宜把所有问题同时铺开。可以先围绕低分维度建立1-2个组织成长试点，将问题从“现象描述”转化为“机制建设”。例如，若团队协同偏低，应重点梳理跨部门流程、责任边界和协同会议机制；若执行落地偏低，应建立重点工作责任人、时间节点、过程反馈和复盘闭环；若干部成长偏低，则应明确科主任、护士长等中层干部的管理能力标准和成长路径。`,
+        `第二，建议把组织能力提升从“临时整改”转向“项目化推进”。很多医院管理问题之所以反复出现，是因为问题被解决在当下，却没有沉淀为制度、流程、工具和干部能力。院长层面需要关注的不只是某件事有没有完成，更要关注完成这件事的机制能不能复制，责任能不能传递，经验能不能沉淀。`,
+        `第三，建议建立面向中层干部和关键岗位的持续赋能机制。医院从专家驱动走向组织驱动，关键不在于削弱专家价值，而在于让专家、科主任、护士长和职能部门负责人拥有更清晰的管理语言、协同方法和团队建设能力。只有关键岗位的组织能力提升，医院的战略、质量、服务和人才发展才更容易真正落地。`,
+        lowDimensions.length ? `结合本次低分维度，建议优先关注${lowNames}。这些方向可作为后续组织能力提升的切入口，先小范围试点，再逐步扩展到更多科室和管理场景。` : `当前六维得分均达到70分以上，说明医院整体基础较稳。建议下一步重点放在经验标准化、组织复盘、干部梯队和持续成长机制建设上，避免优势停留在个别团队或个别管理者身上。`,
+        `HOD医院组织发展赋能工程可以作为后续支持工具，帮助医院把诊断发现转化为干部成长、团队协同、执行闭环和持续改进的具体项目。它的意义不在于增加医院额外负担，而在于帮助医院看清问题、理顺机制、提升干部、激活团队，让医院逐步从“专家驱动”走向“组织驱动”。`
+      ];
+
+      const reportText = [
+        `HOD医院组织能力诊断报告`,
+        `组织能力总分：${total}分`,
+        `诊断分型：${level}`,
+        ``,
+        `一、专家诊断综述`,
+        ...summary,
+        ``,
+        `二、优势说明`,
+        ...strengthAnalysis,
+        ``,
+        `三、短板与风险`,
+        ...riskAnalysis,
+        ``,
+        `四、院长可读咨询建议`,
+        ...advice,
+        ``,
+        `HOD医院组织发展赋能工程`,
+        `让医者懂管理，让团队有力量。`
+      ].join("\n\n");
+
+      return { summary, strengthAnalysis, riskAnalysis, advice, reportText };
+    }
+
+    function paragraphsHtml(items) {
+      return items.map(item => `<p>${item}</p>`).join("");
     }
 
     function drawRadar(scores) {
@@ -867,6 +1018,13 @@
         : ["<li>HOD医院组织能力持续成长解决方案</li>"];
       document.getElementById("projectList").innerHTML = projectItems.join("");
 
+      const report = buildReport(scores, total, strengths, risks, lowDimensions);
+      latestReportText = report.reportText;
+      document.getElementById("expertSummary").innerHTML = paragraphsHtml(report.summary);
+      document.getElementById("strengthAnalysis").innerHTML = paragraphsHtml(report.strengthAnalysis);
+      document.getElementById("riskAnalysis").innerHTML = paragraphsHtml(report.riskAnalysis);
+      document.getElementById("consultingAdvice").innerHTML = paragraphsHtml(report.advice);
+
       drawRadar(scores);
       resultSection.classList.add("show");
       resultSection.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -903,6 +1061,27 @@
     document.getElementById("generateBtn").addEventListener("click", generateReport);
     document.getElementById("resetBtn").addEventListener("click", resetSurvey);
     document.getElementById("printBtn").addEventListener("click", () => window.print());
+    document.getElementById("downloadReportBtn").addEventListener("click", () => {
+      if (!latestReportText) return;
+      const blob = new Blob([latestReportText], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `HOD医院组织能力诊断报告_${new Date().toISOString().slice(0, 10)}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    });
+    document.getElementById("copyReportBtn").addEventListener("click", async () => {
+      if (!latestReportText) return;
+      try {
+        await navigator.clipboard.writeText(latestReportText);
+        document.getElementById("saveHint").textContent = "报告已复制，可直接粘贴到微信、飞书或文档中保存。";
+      } catch (error) {
+        document.getElementById("saveHint").textContent = "当前浏览器不支持自动复制，请使用下载报告文本或截图保存。";
+      }
+    });
     surveyForm.addEventListener("change", updateProgress);
 
     renderModel();
